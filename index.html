@@ -124,7 +124,7 @@ cursor:pointer;
 
 let peer
 let connections=[]
-let room=""
+let seenMessages=new Set()
 
 function addMessage(name,msg){
 
@@ -141,13 +141,23 @@ chat.scrollTop=chat.scrollHeight
 
 }
 
+function handleMessage(data){
+
+if(seenMessages.has(data.id)) return
+
+seenMessages.add(data.id)
+
+addMessage(data.name,data.msg)
+
+connections.forEach(c=>c.send(data))
+
+}
+
 function createRoom(){
 
 peer=new Peer()
 
 peer.on("open",id=>{
-
-room=id
 
 document.getElementById("roomDisplay").innerText="Room Code: "+id
 
@@ -157,13 +167,7 @@ peer.on("connection",conn=>{
 
 connections.push(conn)
 
-conn.on("data",data=>{
-
-addMessage(data.name,data.msg)
-
-connections.forEach(c=>c.send(data))
-
-})
+conn.on("data",handleMessage)
 
 })
 
@@ -181,11 +185,7 @@ let conn=peer.connect(roomId)
 
 connections.push(conn)
 
-conn.on("data",data=>{
-
-addMessage(data.name,data.msg)
-
-})
+conn.on("data",handleMessage)
 
 })
 
@@ -195,16 +195,18 @@ document.getElementById("roomDisplay").innerText="Joined Room: "+roomId
 
 function send(){
 
-let name=document.getElementById("name").value||"Anonymous"
+let name=document.getElementById("name").value || "Anonymous"
 let msg=document.getElementById("msg").value
 
 if(!msg) return
 
-let data={name:name,msg:msg}
+let data={
+id:crypto.randomUUID(),
+name:name,
+msg:msg
+}
 
-addMessage(name,msg)
-
-connections.forEach(c=>c.send(data))
+handleMessage(data)
 
 document.getElementById("msg").value=""
 
