@@ -1,7 +1,9 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Cool Chat</title>
+<title>P2P Chat</title>
+
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 
 <style>
 body{
@@ -23,8 +25,8 @@ padding:15px;
 width:100%;
 padding:8px;
 margin-bottom:8px;
-border-radius:6px;
 border:none;
+border-radius:6px;
 background:#2b2d31;
 color:white;
 }
@@ -84,22 +86,21 @@ color:white;
 cursor:pointer;
 }
 </style>
-
 </head>
 
 <body>
 
 <div id="sidebar">
 
-<h3>Chat Room</h3>
-
-<input id="room" placeholder="room code">
-
-<button onclick="joinRoom()">Join Room</button>
+<h3>Room</h3>
 
 <button onclick="createRoom()">Create Room</button>
 
-<p id="roomDisplay">Current Room: default</p>
+<input id="roomInput" placeholder="enter room code">
+
+<button onclick="joinRoom()">Join Room</button>
+
+<p id="roomDisplay"></p>
 
 </div>
 
@@ -121,73 +122,91 @@ cursor:pointer;
 
 <script>
 
-let room="default"
+let peer
+let connections=[]
+let room=""
 
-let database={}
-
-function joinRoom(){
-
-room=document.getElementById("room").value || "default"
-
-document.getElementById("roomDisplay").innerText="Current Room: "+room
-
-if(!database[room]) database[room]=[]
-
-load()
-
-}
-
-function createRoom(){
-
-let code=Math.random().toString(36).substring(2,8)
-
-document.getElementById("room").value=code
-
-joinRoom()
-
-}
-
-function load(){
+function addMessage(name,msg){
 
 let chat=document.getElementById("chat")
 
-chat.innerHTML=""
-
-let messages=database[room] || []
-
-messages.forEach(m=>{
-
 chat.innerHTML+=`
 <div class="msg">
-<b>${m.name}</b><br>
-${m.msg}
+<b>${name}</b><br>
+${msg}
 </div>
 `
-
-})
 
 chat.scrollTop=chat.scrollHeight
 
 }
 
+function createRoom(){
+
+peer=new Peer()
+
+peer.on("open",id=>{
+
+room=id
+
+document.getElementById("roomDisplay").innerText="Room Code: "+id
+
+})
+
+peer.on("connection",conn=>{
+
+connections.push(conn)
+
+conn.on("data",data=>{
+
+addMessage(data.name,data.msg)
+
+connections.forEach(c=>c.send(data))
+
+})
+
+})
+
+}
+
+function joinRoom(){
+
+let roomId=document.getElementById("roomInput").value
+
+peer=new Peer()
+
+peer.on("open",()=>{
+
+let conn=peer.connect(roomId)
+
+connections.push(conn)
+
+conn.on("data",data=>{
+
+addMessage(data.name,data.msg)
+
+})
+
+})
+
+document.getElementById("roomDisplay").innerText="Joined Room: "+roomId
+
+}
+
 function send(){
 
-let name=document.getElementById("name").value || "Anonymous"
-
+let name=document.getElementById("name").value||"Anonymous"
 let msg=document.getElementById("msg").value
 
 if(!msg) return
 
-if(!database[room]) database[room]=[]
+let data={name:name,msg:msg}
 
-database[room].push({
-name:name,
-msg:msg
-})
+addMessage(name,msg)
+
+connections.forEach(c=>c.send(data))
 
 document.getElementById("msg").value=""
-
-load()
 
 }
 
