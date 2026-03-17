@@ -91,6 +91,12 @@ font-size:12px;
 color:#aaa;
 margin-left:20px;
 }
+
+#status{
+font-size:12px;
+color:#aaa;
+margin-top:5px;
+}
 </style>
 </head>
 
@@ -109,6 +115,7 @@ margin-left:20px;
 <button onclick="copyInvite()">Get Invite Link</button>
 
 <p id="roomDisplay"></p>
+<p id="status"></p>
 
 <h4>Users</h4>
 <div id="users"></div>
@@ -137,6 +144,7 @@ let peer
 let connections=[]
 let seenMessages=new Set()
 let users=new Set()
+let hasJoined=false
 
 // load saved name
 document.getElementById("name").value =
@@ -146,12 +154,6 @@ localStorage.getItem("chatName") || ""
 document.getElementById("name").addEventListener("input",e=>{
 localStorage.setItem("chatName", e.target.value)
 })
-
-// auto join from URL
-let params=new URLSearchParams(location.search)
-if(params.get("room")){
-document.getElementById("roomInput").value=params.get("room")
-}
 
 // UI
 function addMessage(name,msg,system=false){
@@ -218,10 +220,14 @@ if(c!==sender) c.send(data)
 // CREATE ROOM
 function createRoom(){
 
+if(hasJoined) return
+hasJoined=true
+
 peer=new Peer()
 
 peer.on("open",id=>{
 document.getElementById("roomDisplay").innerText="Room: "+id
+document.getElementById("status").innerText="Room created"
 history.replaceState(null,"","?room="+id)
 })
 
@@ -243,7 +249,12 @@ addMessage("", name+" joined", true)
 // JOIN ROOM
 function joinRoom(){
 
+if(hasJoined) return
+hasJoined=true
+
 let roomId=document.getElementById("roomInput").value
+
+document.getElementById("status").innerText="Joining room..."
 
 peer=new Peer()
 
@@ -253,12 +264,19 @@ let conn=peer.connect(roomId)
 
 connections.push(conn)
 
-conn.on("data",(data)=>handleMessage(data, conn))
+conn.on("open",()=>{
 
 let name=document.getElementById("name").value || "Anonymous"
 
 conn.send({type:"join",name:name})
 addMessage("", name+" joined", true)
+
+document.getElementById("status").innerText="Connected!"
+document.getElementById("msg").focus()
+
+})
+
+conn.on("data",(data)=>handleMessage(data, conn))
 
 })
 
@@ -303,7 +321,7 @@ document.getElementById("msg").addEventListener("keypress",e=>{
 if(e.key==="Enter") send()
 })
 
-// ✅ INVITE LINK BUTTON
+// INVITE LINK
 function copyInvite(){
 
 let roomText=document.getElementById("roomDisplay").innerText
@@ -319,8 +337,22 @@ let link="https://sigmaeditionadmin.github.io/cool-chat/?room="+roomId
 
 navigator.clipboard.writeText(link)
 
-document.getElementById("roomDisplay").innerText="Invite copied!"
+document.getElementById("status").innerText="Invite link copied!"
 
+}
+
+// ✅ AUTO JOIN FROM LINK
+let params=new URLSearchParams(location.search)
+
+if(params.get("room")){
+let roomId=params.get("room")
+
+document.getElementById("roomInput").value=roomId
+document.getElementById("status").innerText="Auto joining..."
+
+setTimeout(()=>{
+joinRoom()
+}, 600)
 }
 
 </script>
