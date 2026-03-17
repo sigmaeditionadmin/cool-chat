@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Better Chat</title>
+<title>Cool Chat</title>
 
 <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 
@@ -106,6 +106,8 @@ margin-left:20px;
 
 <button onclick="joinRoom()">Join Room</button>
 
+<button onclick="copyInvite()">Get Invite Link</button>
+
 <p id="roomDisplay"></p>
 
 <h4>Users</h4>
@@ -174,10 +176,9 @@ div.innerHTML+=u+"<br>"
 })
 }
 
-// ✅ FIXED MESSAGE HANDLER
+// MESSAGE HANDLER
 function handleMessage(data, sender=null){
 
-// USER JOIN
 if(data.type==="join"){
 users.add(data.name)
 updateUsers()
@@ -187,33 +188,27 @@ type:"userList",
 list:Array.from(users)
 }
 
-// send full list to everyone
 connections.forEach(c=>c.send(listData))
-
 return
 }
 
-// RECEIVE FULL USER LIST
 if(data.type==="userList"){
 users=new Set(data.list)
 updateUsers()
 return
 }
 
-// TYPING
 if(data.type==="typing"){
 document.getElementById("typing").innerText=data.name+" is typing..."
 setTimeout(()=>document.getElementById("typing").innerText="",1000)
 return
 }
 
-// NORMAL MESSAGE
 if(seenMessages.has(data.id)) return
 seenMessages.add(data.id)
 
 addMessage(data.name,data.msg)
 
-// forward
 connections.forEach(c=>{
 if(c!==sender) c.send(data)
 })
@@ -238,10 +233,7 @@ conn.on("data",(data)=>handleMessage(data, conn))
 
 let name=document.getElementById("name").value || "Anonymous"
 
-// send join
 conn.send({type:"join",name:name})
-
-// show join message
 addMessage("", name+" joined", true)
 
 })
@@ -265,10 +257,7 @@ conn.on("data",(data)=>handleMessage(data, conn))
 
 let name=document.getElementById("name").value || "Anonymous"
 
-// send join
 conn.send({type:"join",name:name})
-
-// show join message
 addMessage("", name+" joined", true)
 
 })
@@ -313,6 +302,26 @@ c.send({type:"typing",name:name})
 document.getElementById("msg").addEventListener("keypress",e=>{
 if(e.key==="Enter") send()
 })
+
+// ✅ INVITE LINK BUTTON
+function copyInvite(){
+
+let roomText=document.getElementById("roomDisplay").innerText
+
+if(!roomText.includes("Room:")){
+alert("Create or join a room first!")
+return
+}
+
+let roomId=roomText.replace("Room: ","")
+
+let link="https://sigmaeditionadmin.github.io/cool-chat/?room="+roomId
+
+navigator.clipboard.writeText(link)
+
+document.getElementById("roomDisplay").innerText="Invite copied!"
+
+}
 
 </script>
 
