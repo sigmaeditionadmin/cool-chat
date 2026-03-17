@@ -16,12 +16,12 @@ height:100vh;
 }
 
 #sidebar{
-width:220px;
+width:230px;
 background:#1e1f22;
 padding:15px;
 }
 
-#sidebar input{
+#sidebar button,#sidebar input{
 width:100%;
 padding:8px;
 margin-bottom:8px;
@@ -32,14 +32,13 @@ color:white;
 }
 
 #sidebar button{
-width:100%;
-padding:8px;
-margin-bottom:6px;
-border:none;
-border-radius:6px;
 background:#5865f2;
-color:white;
 cursor:pointer;
+}
+
+#users{
+font-size:14px;
+margin-top:10px;
 }
 
 #main{
@@ -100,7 +99,14 @@ cursor:pointer;
 
 <button onclick="joinRoom()">Join Room</button>
 
+<button onclick="copyLink()">Copy Invite Link</button>
+
 <p id="roomDisplay"></p>
+
+<div id="users">
+<b>Users</b>
+<div id="userList"></div>
+</div>
 
 </div>
 
@@ -125,6 +131,18 @@ cursor:pointer;
 let peer
 let connections=[]
 let seenMessages=new Set()
+let users=[]
+
+function updateUsers(){
+
+let list=document.getElementById("userList")
+list.innerHTML=""
+
+users.forEach(u=>{
+list.innerHTML+=u+"<br>"
+})
+
+}
 
 function addMessage(name,msg){
 
@@ -142,6 +160,14 @@ chat.scrollTop=chat.scrollHeight
 }
 
 function handleMessage(data){
+
+if(data.type==="user"){
+if(!users.includes(data.name)){
+users.push(data.name)
+updateUsers()
+}
+return
+}
 
 if(seenMessages.has(data.id)) return
 
@@ -187,6 +213,10 @@ connections.push(conn)
 
 conn.on("data",handleMessage)
 
+let name=document.getElementById("name").value || "Anonymous"
+
+conn.send({type:"user",name:name})
+
 })
 
 document.getElementById("roomDisplay").innerText="Joined Room: "+roomId
@@ -211,6 +241,24 @@ handleMessage(data)
 document.getElementById("msg").value=""
 
 }
+
+function copyLink(){
+
+let text=document.getElementById("roomDisplay").innerText.split(": ")[1]
+
+navigator.clipboard.writeText(text)
+
+alert("Room code copied!")
+
+}
+
+document.getElementById("msg").addEventListener("keypress",function(e){
+
+if(e.key==="Enter"){
+send()
+}
+
+})
 
 </script>
 
