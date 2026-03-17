@@ -133,6 +133,7 @@ margin-top:5px;
 <input id="name" placeholder="name">
 <input id="msg" placeholder="message">
 <button onclick="send()">Send</button>
+<button onclick="pauseChat()">Pause</button>
 
 </div>
 
@@ -140,14 +141,17 @@ margin-top:5px;
 
 <script>
 
-// 🔥 SINGLE PEER (fast reload)
+// 🔥 SINGLE PEER (fast, using public PeerJS server)
 let peer = new Peer({
+  host: '0.peerjs.com',
+  port: 443,
+  path: '/',
+  secure: true,
   config:{
     iceServers:[
       { urls:"stun:stun.l.google.com:19302" },
       { urls:"stun:stun1.l.google.com:19302" },
-      { urls:"stun:stun2.l.google.com:19302" },
-      { urls:"stun:stun3.l.google.com:19302" }
+      { urls:"stun:stun2.l.google.com:19302" }
     ]
   }
 })
@@ -158,217 +162,208 @@ let seenMessages=new Set()
 let users=new Set()
 let hasJoined=false
 let currentRoom=null
+let paused=false
 
-peer.on("open",()=>{ peerReady=true })
+peer.on("open",()=>{ 
+  peerReady=true 
+  console.log("Peer ready ✅")
+})
 
 // save name
 document.getElementById("name").value =
 localStorage.getItem("chatName") || ""
 
 document.getElementById("name").addEventListener("input",e=>{
-localStorage.setItem("chatName", e.target.value)
+  localStorage.setItem("chatName", e.target.value)
 })
 
 // UI
 function addMessage(name,msg,system=false){
-let time=new Date().toLocaleTimeString()
-let chat=document.getElementById("chat")
+  let time=new Date().toLocaleTimeString()
+  let chat=document.getElementById("chat")
 
-chat.innerHTML+=`
-<div class="msg">
-<b>${system ? "" : name}</b>
-${msg}
-<div class="time">${time}</div>
-</div>
-`
-chat.scrollTop=chat.scrollHeight
+  chat.innerHTML+=`
+  <div class="msg">
+    <b>${system ? "" : name}</b>
+    ${msg}
+    <div class="time">${time}</div>
+  </div>
+  `
+  chat.scrollTop=chat.scrollHeight
 }
 
 function updateUsers(){
-let div=document.getElementById("users")
-div.innerHTML=""
-users.forEach(u=>{
-div.innerHTML+=u+"<br>"
-})
+  let div=document.getElementById("users")
+  div.innerHTML=""
+  users.forEach(u=>{
+    div.innerHTML+=u+"<br>"
+  })
 }
 
 // MESSAGE HANDLER
 function handleMessage(data, sender=null){
 
-if(data.type==="join"){
-users.add(data.name)
-updateUsers()
+  if(paused) return
 
-let listData={
-type:"userList",
-list:Array.from(users)
-}
+  if(data.type==="join"){
+    users.add(data.name)
+    updateUsers()
 
-connections.forEach(c=>c.send(listData))
-return
-}
+    let listData={
+      type:"userList",
+      list:Array.from(users)
+    }
 
-if(data.type==="userList"){
-users=new Set(data.list)
-updateUsers()
-return
-}
+    connections.forEach(c=>c.send(listData))
+    return
+  }
 
-if(data.type==="typing"){
-document.getElementById("typing").innerText=data.name+" is typing..."
-setTimeout(()=>document.getElementById("typing").innerText="",1000)
-return
-}
+  if(data.type==="userList"){
+    users=new Set(data.list)
+    updateUsers()
+    return
+  }
 
-if(seenMessages.has(data.id)) return
-seenMessages.add(data.id)
+  if(data.type==="typing"){
+    document.getElementById("typing").innerText=data.name+" is typing..."
+    setTimeout(()=>document.getElementById("typing").innerText="",1000)
+    return
+  }
 
-addMessage(data.name,data.msg)
+  if(seenMessages.has(data.id)) return
+  seenMessages.add(data.id)
 
-connections.forEach(c=>{
-if(c!==sender) c.send(data)
-})
+  addMessage(data.name,data.msg)
 
+  connections.forEach(c=>{
+    if(c!==sender) c.send(data)
+  })
 }
 
 // CREATE ROOM
 function createRoom(){
 
-if(hasJoined || !peerReady) return
-hasJoined=true
+  if(hasJoined || !peerReady) return
+  hasJoined=true
 
-document.getElementById("status").innerText="Creating room..."
+  document.getElementById("status").innerText="Creating room..."
 
-peer.on("connection",conn=>{
+  peer.on("connection",conn=>{
+    connections.push(conn)
+    conn.on("data",(data)=>handleMessage(data, conn))
 
-connections.push(conn)
+    let name=document.getElementById("name").value || "Anonymous"
+    conn.send({type:"join",name:name})
+    addMessage("", name+" joined", true)
+  })
 
-conn.on("data",(data)=>handleMessage(data, conn))
-
-let name=document.getElementById("name").value || "Anonymous"
-
-conn.send({type:"join",name:name})
-addMessage("", name+" joined", true)
-
-})
-
-peer.on("open",id=>{
-currentRoom=id
-document.getElementById("roomDisplay").innerText="Room: "+id
-history.replaceState(null,"","?room="+id)
-document.getElementById("status").innerText="Room created"
-})
-
+  peer.on("open",id=>{
+    currentRoom=id
+    document.getElementById("roomDisplay").innerText="Room: "+id
+    history.replaceState(null,"","?room="+id)
+    document.getElementById("status").innerText="Room created ✅"
+  })
 }
 
 // JOIN ROOM
 function joinRoom(){
 
-if(hasJoined || !peerReady) return
-hasJoined=true
+  if(hasJoined || !peerReady) return
+  hasJoined=true
 
-let roomId=document.getElementById("roomInput").value
-currentRoom=roomId
+  let roomId=document.getElementById("roomInput").value
+  currentRoom=roomId
 
-document.getElementById("status").innerText="Connecting ⚡..."
+  document.getElementById("status").innerText="Connecting ⚡..."
 
-let conn = peer.connect(roomId)
+  let conn = peer.connect(roomId)
+  connections.push(conn)
 
-connections.push(conn)
+  conn.on("open",()=>{
 
-conn.on("open",()=>{
+    let name=document.getElementById("name").value || "Anonymous"
 
-let name=document.getElementById("name").value || "Anonymous"
+    conn.send({type:"join",name:name})
+    addMessage("", name+" joined", true)
 
-conn.send({type:"join",name:name})
-addMessage("", name+" joined", true)
+    document.getElementById("status").innerText="Connected ✅"
+    document.getElementById("msg").focus()
 
-document.getElementById("status").innerText="Connected ✅"
-document.getElementById("msg").focus()
+  })
 
-})
+  conn.on("data",(data)=>handleMessage(data, conn))
 
-conn.on("data",(data)=>handleMessage(data, conn))
+  conn.on("close",()=>{
+    document.getElementById("status").innerText="Reconnecting..."
+    hasJoined=false
+    setTimeout(()=>joinRoom(),1000)
+  })
 
-conn.on("close",()=>{
-document.getElementById("status").innerText="Reconnecting..."
-hasJoined=false
-setTimeout(()=>joinRoom(),1000)
-})
-
-document.getElementById("roomDisplay").innerText="Room: "+roomId
-history.replaceState(null,"","?room="+roomId)
-
+  document.getElementById("roomDisplay").innerText="Room: "+roomId
+  history.replaceState(null,"","?room="+roomId)
 }
 
 // SEND
 function send(){
+  if(paused) return
 
-let name=document.getElementById("name").value || "Anonymous"
-let msg=document.getElementById("msg").value
+  let name=document.getElementById("name").value || "Anonymous"
+  let msg=document.getElementById("msg").value
 
-if(!msg) return
+  if(!msg) return
 
-let data={
-id:crypto.randomUUID(),
-name:name,
-msg:msg
-}
+  let data={
+    id:crypto.randomUUID(),
+    name:name,
+    msg:msg
+  }
 
-handleMessage(data)
-
-document.getElementById("msg").value=""
-
+  handleMessage(data)
+  document.getElementById("msg").value=""
 }
 
 // typing
 document.getElementById("msg").addEventListener("input",()=>{
 
-let name=document.getElementById("name").value || "Anonymous"
+  let name=document.getElementById("name").value || "Anonymous"
 
-connections.forEach(c=>{
-c.send({type:"typing",name:name})
-})
+  connections.forEach(c=>{
+    c.send({type:"typing",name:name})
+  })
 
 })
 
 // enter
 document.getElementById("msg").addEventListener("keypress",e=>{
-if(e.key==="Enter") send()
+  if(e.key==="Enter") send()
 })
 
 // invite
 function copyInvite(){
 
-let roomText=document.getElementById("roomDisplay").innerText
+  if(!currentRoom){
+    alert("Create or join a room first!")
+    return
+  }
 
-if(!roomText.includes("Room:")){
-alert("Create or join a room first!")
-return
+  let link=location.origin+location.pathname+"?room="+currentRoom
+  navigator.clipboard.writeText(link)
+  document.getElementById("status").innerText="Invite copied!"
 }
 
-let roomId=roomText.replace("Room: ","")
-
-let link=location.origin+location.pathname+"?room="+roomId
-
-navigator.clipboard.writeText(link)
-
-document.getElementById("status").innerText="Invite copied!"
-
+// pause
+function pauseChat(){
+  paused=!paused
+  document.getElementById("status").innerText = paused ? "Chat paused ⏸️" : "Chat resumed ✅"
 }
 
 // AUTO JOIN
 let params=new URLSearchParams(location.search)
-
 if(params.get("room")){
-let roomId=params.get("room")
-
-document.getElementById("roomInput").value=roomId
-document.getElementById("status").innerText="Auto joining..."
-
-setTimeout(()=>{
-joinRoom()
-}, 200)
+  let roomId=params.get("room")
+  document.getElementById("roomInput").value=roomId
+  document.getElementById("status").innerText="Auto joining..."
+  setTimeout(()=>joinRoom(), 200)
 }
 
 </script>
