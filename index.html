@@ -99,14 +99,7 @@ cursor:pointer;
 
 <button onclick="joinRoom()">Join Room</button>
 
-<button onclick="copyLink()">Copy Invite Link</button>
-
 <p id="roomDisplay"></p>
-
-<div id="users">
-<b>Users</b>
-<div id="userList"></div>
-</div>
 
 </div>
 
@@ -131,18 +124,6 @@ cursor:pointer;
 let peer
 let connections=[]
 let seenMessages=new Set()
-let users=[]
-
-function updateUsers(){
-
-let list=document.getElementById("userList")
-list.innerHTML=""
-
-users.forEach(u=>{
-list.innerHTML+=u+"<br>"
-})
-
-}
 
 function addMessage(name,msg){
 
@@ -159,23 +140,20 @@ chat.scrollTop=chat.scrollHeight
 
 }
 
-function handleMessage(data){
-
-if(data.type==="user"){
-if(!users.includes(data.name)){
-users.push(data.name)
-updateUsers()
-}
-return
-}
+// ✅ FIXED MESSAGE HANDLER
+function handleMessage(data, sender=null){
 
 if(seenMessages.has(data.id)) return
-
 seenMessages.add(data.id)
 
-addMessage(data.name,data.msg)
+addMessage(data.name, data.msg)
 
-connections.forEach(c=>c.send(data))
+// send to everyone except sender
+connections.forEach(c=>{
+if(c !== sender){
+c.send(data)
+}
+})
 
 }
 
@@ -184,16 +162,16 @@ function createRoom(){
 peer=new Peer()
 
 peer.on("open",id=>{
-
 document.getElementById("roomDisplay").innerText="Room Code: "+id
-
 })
 
+// host receives connections
 peer.on("connection",conn=>{
 
 connections.push(conn)
 
-conn.on("data",handleMessage)
+// IMPORTANT FIX HERE
+conn.on("data",(data)=>handleMessage(data, conn))
 
 })
 
@@ -211,11 +189,8 @@ let conn=peer.connect(roomId)
 
 connections.push(conn)
 
-conn.on("data",handleMessage)
-
-let name=document.getElementById("name").value || "Anonymous"
-
-conn.send({type:"user",name:name})
+// IMPORTANT FIX HERE
+conn.on("data",(data)=>handleMessage(data, conn))
 
 })
 
@@ -236,29 +211,12 @@ name:name,
 msg:msg
 }
 
+// send to self + others
 handleMessage(data)
 
 document.getElementById("msg").value=""
 
 }
-
-function copyLink(){
-
-let text=document.getElementById("roomDisplay").innerText.split(": ")[1]
-
-navigator.clipboard.writeText(text)
-
-alert("Room code copied!")
-
-}
-
-document.getElementById("msg").addEventListener("keypress",function(e){
-
-if(e.key==="Enter"){
-send()
-}
-
-})
 
 </script>
 
