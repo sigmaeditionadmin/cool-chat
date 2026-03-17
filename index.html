@@ -140,8 +140,8 @@ margin-top:5px;
 
 <script>
 
-// 🔥 PRELOAD (faster connection)
-let preloadPeer = new Peer({
+// 🔥 SINGLE PEER (fast reload)
+let peer = new Peer({
   config:{
     iceServers:[
       { urls:"stun:stun.l.google.com:19302" },
@@ -152,11 +152,14 @@ let preloadPeer = new Peer({
   }
 })
 
-let peer
+let peerReady=false
 let connections=[]
 let seenMessages=new Set()
 let users=new Set()
 let hasJoined=false
+let currentRoom=null
+
+peer.on("open",()=>{ peerReady=true })
 
 // save name
 document.getElementById("name").value =
@@ -231,25 +234,10 @@ if(c!==sender) c.send(data)
 // CREATE ROOM
 function createRoom(){
 
-if(hasJoined) return
+if(hasJoined || !peerReady) return
 hasJoined=true
 
-peer=new Peer({
-  config:{
-    iceServers:[
-      { urls:"stun:stun.l.google.com:19302" },
-      { urls:"stun:stun1.l.google.com:19302" },
-      { urls:"stun:stun2.l.google.com:19302" },
-      { urls:"stun:stun3.l.google.com:19302" }
-    ]
-  }
-})
-
-peer.on("open",id=>{
-document.getElementById("roomDisplay").innerText="Room: "+id
-document.getElementById("status").innerText="Room created"
-history.replaceState(null,"","?room="+id)
-})
+document.getElementById("status").innerText="Creating room..."
 
 peer.on("connection",conn=>{
 
@@ -264,32 +252,27 @@ addMessage("", name+" joined", true)
 
 })
 
+peer.on("open",id=>{
+currentRoom=id
+document.getElementById("roomDisplay").innerText="Room: "+id
+history.replaceState(null,"","?room="+id)
+document.getElementById("status").innerText="Room created"
+})
+
 }
 
 // JOIN ROOM
 function joinRoom(){
 
-if(hasJoined) return
+if(hasJoined || !peerReady) return
 hasJoined=true
+
+let roomId=document.getElementById("roomInput").value
+currentRoom=roomId
 
 document.getElementById("status").innerText="Connecting ⚡..."
 
-let roomId=document.getElementById("roomInput").value
-
-peer=new Peer({
-  config:{
-    iceServers:[
-      { urls:"stun:stun.l.google.com:19302" },
-      { urls:"stun:stun1.l.google.com:19302" },
-      { urls:"stun:stun2.l.google.com:19302" },
-      { urls:"stun:stun3.l.google.com:19302" }
-    ]
-  }
-})
-
-peer.on("open",()=>{
-
-let conn=peer.connect(roomId)
+let conn = peer.connect(roomId)
 
 connections.push(conn)
 
@@ -307,6 +290,10 @@ document.getElementById("msg").focus()
 
 conn.on("data",(data)=>handleMessage(data, conn))
 
+conn.on("close",()=>{
+document.getElementById("status").innerText="Reconnecting..."
+hasJoined=false
+setTimeout(()=>joinRoom(),1000)
 })
 
 document.getElementById("roomDisplay").innerText="Room: "+roomId
@@ -381,7 +368,7 @@ document.getElementById("status").innerText="Auto joining..."
 
 setTimeout(()=>{
 joinRoom()
-}, 100)
+}, 200)
 }
 
 </script>
