@@ -140,17 +140,28 @@ margin-top:5px;
 
 <script>
 
+// 🔥 PRELOAD (faster connection)
+let preloadPeer = new Peer({
+  config:{
+    iceServers:[
+      { urls:"stun:stun.l.google.com:19302" },
+      { urls:"stun:stun1.l.google.com:19302" },
+      { urls:"stun:stun2.l.google.com:19302" },
+      { urls:"stun:stun3.l.google.com:19302" }
+    ]
+  }
+})
+
 let peer
 let connections=[]
 let seenMessages=new Set()
 let users=new Set()
 let hasJoined=false
 
-// load saved name
+// save name
 document.getElementById("name").value =
 localStorage.getItem("chatName") || ""
 
-// save name
 document.getElementById("name").addEventListener("input",e=>{
 localStorage.setItem("chatName", e.target.value)
 })
@@ -223,7 +234,16 @@ function createRoom(){
 if(hasJoined) return
 hasJoined=true
 
-peer=new Peer()
+peer=new Peer({
+  config:{
+    iceServers:[
+      { urls:"stun:stun.l.google.com:19302" },
+      { urls:"stun:stun1.l.google.com:19302" },
+      { urls:"stun:stun2.l.google.com:19302" },
+      { urls:"stun:stun3.l.google.com:19302" }
+    ]
+  }
+})
 
 peer.on("open",id=>{
 document.getElementById("roomDisplay").innerText="Room: "+id
@@ -252,11 +272,20 @@ function joinRoom(){
 if(hasJoined) return
 hasJoined=true
 
+document.getElementById("status").innerText="Connecting ⚡..."
+
 let roomId=document.getElementById("roomInput").value
 
-document.getElementById("status").innerText="Joining room..."
-
-peer=new Peer()
+peer=new Peer({
+  config:{
+    iceServers:[
+      { urls:"stun:stun.l.google.com:19302" },
+      { urls:"stun:stun1.l.google.com:19302" },
+      { urls:"stun:stun2.l.google.com:19302" },
+      { urls:"stun:stun3.l.google.com:19302" }
+    ]
+  }
+})
 
 peer.on("open",()=>{
 
@@ -271,7 +300,7 @@ let name=document.getElementById("name").value || "Anonymous"
 conn.send({type:"join",name:name})
 addMessage("", name+" joined", true)
 
-document.getElementById("status").innerText="Connected!"
+document.getElementById("status").innerText="Connected ✅"
 document.getElementById("msg").focus()
 
 })
@@ -285,7 +314,7 @@ history.replaceState(null,"","?room="+roomId)
 
 }
 
-// SEND MESSAGE
+// SEND
 function send(){
 
 let name=document.getElementById("name").value || "Anonymous"
@@ -305,7 +334,7 @@ document.getElementById("msg").value=""
 
 }
 
-// TYPING
+// typing
 document.getElementById("msg").addEventListener("input",()=>{
 
 let name=document.getElementById("name").value || "Anonymous"
@@ -316,12 +345,12 @@ c.send({type:"typing",name:name})
 
 })
 
-// ENTER TO SEND
+// enter
 document.getElementById("msg").addEventListener("keypress",e=>{
 if(e.key==="Enter") send()
 })
 
-// INVITE LINK
+// invite
 function copyInvite(){
 
 let roomText=document.getElementById("roomDisplay").innerText
@@ -333,15 +362,15 @@ return
 
 let roomId=roomText.replace("Room: ","")
 
-let link="https://sigmaeditionadmin.github.io/cool-chat/?room="+roomId
+let link=location.origin+location.pathname+"?room="+roomId
 
 navigator.clipboard.writeText(link)
 
-document.getElementById("status").innerText="Invite link copied!"
+document.getElementById("status").innerText="Invite copied!"
 
 }
 
-// ✅ AUTO JOIN FROM LINK
+// AUTO JOIN
 let params=new URLSearchParams(location.search)
 
 if(params.get("room")){
@@ -352,7 +381,7 @@ document.getElementById("status").innerText="Auto joining..."
 
 setTimeout(()=>{
 joinRoom()
-}, 600)
+}, 100)
 }
 
 </script>
