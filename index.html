@@ -185,7 +185,7 @@ let peerReady=false
 let myId=null
 let connections=[]
 let seenMessages=new Set()
-let users=new Set()
+let users=new Map()
 let hasJoined=false
 let currentRoom=null
 let paused=false
@@ -227,7 +227,8 @@ function updateUsers(){
 let div=document.getElementById("users")
 div.innerHTML=""
 users.forEach(u=>{
-div.innerHTML+=u+"<br>"
+let color = u.online ? "🟢" : "🔴"
+div.innerHTML += color + " " + u.name + "<br>"
 })
 }
 
@@ -240,16 +241,23 @@ return
 }
 
 if(data.type==="join"){
-users.add(data.name)
+users.set(data.name, {name:data.name, online:true})
 updateUsers()
+
 connections.forEach(c=>{
-c.send({type:"userList",list:Array.from(users)})
+c.send({
+type:"userList",
+list:Array.from(users.values())
+})
 })
 return
 }
 
 if(data.type==="userList"){
-users=new Set(data.list)
+users = new Map()
+data.list.forEach(u=>{
+users.set(u.name, u)
+})
 updateUsers()
 return
 }
@@ -292,6 +300,16 @@ conn.on("data",(data)=>handleMessage(data, conn))
 let name=document.getElementById("name").value || "Anonymous"
 conn.send({type:"join",name:name})
 addMessage("", name+" joined", true)
+
+conn.on("close",()=>{
+users.forEach(u=>{
+if(u.name===name){
+u.online=false
+addMessage("", u.name+" left", true)
+}
+})
+updateUsers()
+})
 })
 }
 
