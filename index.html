@@ -141,7 +141,33 @@ margin-top:5px;
 
 <script>
 
-// ⚡ FAST PEER SETUP
+// ===== MESSAGE STORAGE PER ROOM =====
+let messageHistory = []
+function saveMessages(){
+  if(currentRoom){
+    localStorage.setItem("chatHistory_"+currentRoom, JSON.stringify(messageHistory))
+  }
+}
+function loadMessages(){
+  if(currentRoom){
+    let data = localStorage.getItem("chatHistory_"+currentRoom)
+    messageHistory = data ? JSON.parse(data) : []
+  }
+  let chat = document.getElementById("chat")
+  chat.innerHTML=""
+  messageHistory.forEach(m=>{
+    chat.innerHTML += `
+    <div class="msg">
+      <b>${m.system ? "" : m.name}</b>
+      ${m.msg}
+      <div class="time">${m.time}</div>
+    </div>
+    `
+  })
+  chat.scrollTop = chat.scrollHeight
+}
+
+// ===== PEER SETUP =====
 let peer = new Peer({
   host: '0.peerjs.com',
   port: 443,
@@ -165,14 +191,13 @@ let currentRoom=null
 let paused=false
 let buffer=[]
 
-// ✅ Peer ready
 peer.on("open",(id)=>{ 
   peerReady=true 
   myId=id
   document.getElementById("status").innerText="Ready ✅"
 })
 
-// save name
+// ===== NAME SAVE =====
 document.getElementById("name").value =
 localStorage.getItem("chatName") || ""
 
@@ -180,7 +205,7 @@ document.getElementById("name").addEventListener("input",e=>{
 localStorage.setItem("chatName", e.target.value)
 })
 
-// UI
+// ===== UI =====
 function addMessage(name,msg,system=false){
 let time=new Date().toLocaleTimeString()
 let chat=document.getElementById("chat")
@@ -193,6 +218,9 @@ ${msg}
 </div>
 `
 chat.scrollTop=chat.scrollHeight
+
+messageHistory.push({name,msg,system,time})
+saveMessages()
 }
 
 function updateUsers(){
@@ -203,7 +231,7 @@ div.innerHTML+=u+"<br>"
 })
 }
 
-// MESSAGE HANDLER
+// ===== MESSAGE HANDLER =====
 function handleMessage(data, sender=null){
 
 if(paused){
@@ -214,7 +242,6 @@ return
 if(data.type==="join"){
 users.add(data.name)
 updateUsers()
-
 connections.forEach(c=>{
 c.send({type:"userList",list:Array.from(users)})
 })
@@ -241,10 +268,9 @@ addMessage(data.name,data.msg)
 connections.forEach(c=>{
 if(c!==sender) c.send(data)
 })
-
 }
 
-// 🚀 CREATE ROOM (instant)
+// ===== CREATE ROOM =====
 function createRoom(){
 
 if(hasJoined || !peerReady) return
@@ -255,23 +281,21 @@ currentRoom=myId
 document.getElementById("roomDisplay").innerText="Room: "+currentRoom
 history.replaceState(null,"","?room="+currentRoom)
 
-document.getElementById("status").innerText="Room created instantly ⚡"
+loadMessages()
+
+document.getElementById("status").innerText="Room created ⚡"
 
 peer.on("connection",conn=>{
 connections.push(conn)
-
 conn.on("data",(data)=>handleMessage(data, conn))
 
 let name=document.getElementById("name").value || "Anonymous"
-
 conn.send({type:"join",name:name})
 addMessage("", name+" joined", true)
-
 })
-
 }
 
-// 🔗 JOIN ROOM (auto-retry)
+// ===== JOIN ROOM =====
 function joinRoom(){
 
 if(!peerReady) return
@@ -279,23 +303,19 @@ if(!peerReady) return
 let roomId=document.getElementById("roomInput").value
 currentRoom=roomId
 
+loadMessages()
+
 document.getElementById("status").innerText="Connecting ⚡..."
 
 let conn = peer.connect(roomId)
-
 connections.push(conn)
 
 conn.on("open",()=>{
-
 hasJoined=true
-
 let name=document.getElementById("name").value || "Anonymous"
-
 conn.send({type:"join",name:name})
 addMessage("", name+" joined", true)
-
 document.getElementById("status").innerText="Connected ✅"
-
 })
 
 conn.on("data",(data)=>handleMessage(data, conn))
@@ -306,23 +326,20 @@ setTimeout(()=>joinRoom(),1000)
 })
 
 conn.on("error",()=>{
-document.getElementById("status").innerText="Retrying..."
 setTimeout(()=>joinRoom(),1000)
 })
 
 document.getElementById("roomDisplay").innerText="Room: "+roomId
 history.replaceState(null,"","?room="+roomId)
-
 }
 
-// SEND
+// ===== SEND =====
 function send(){
 
 if(paused) return
 
 let name=document.getElementById("name").value || "Anonymous"
 let msg=document.getElementById("msg").value
-
 if(!msg) return
 
 let data={
@@ -332,75 +349,58 @@ msg:msg
 }
 
 handleMessage(data)
-
 document.getElementById("msg").value=""
-
 }
 
-// typing
+// ===== TYPING =====
 document.getElementById("msg").addEventListener("input",()=>{
-
 let name=document.getElementById("name").value || "Anonymous"
-
 connections.forEach(c=>{
 c.send({type:"typing",name:name})
 })
-
 })
 
-// enter
+// ===== ENTER =====
 document.getElementById("msg").addEventListener("keypress",e=>{
 if(e.key==="Enter") send()
 })
 
-// invite
+// ===== INVITE =====
 function copyInvite(){
-
 if(!currentRoom){
 alert("Create or join first!")
 return
 }
-
 let link=location.origin+location.pathname+"?room="+currentRoom
 navigator.clipboard.writeText(link)
-
 document.getElementById("status").innerText="Invite copied!"
-
 }
 
-// ⏸️ PAUSE WITH BUFFER
+// ===== PAUSE =====
 function pauseChat(){
-
 paused=!paused
-
 if(!paused){
 buffer.forEach(msg=>handleMessage(msg))
 buffer=[]
 }
-
 document.getElementById("status").innerText =
 paused ? "Paused ⏸️" : "Resumed ▶️"
-
 }
 
-// 🔥 AUTO JOIN (ALWAYS WORKS)
+// ===== AUTO JOIN =====
 let params = new URLSearchParams(location.search)
-
 if(params.get("room")){
 let roomId = params.get("room")
-
 document.getElementById("roomInput").value = roomId
 document.getElementById("status").innerText = "Preparing to join..."
 
 function tryAutoJoin(){
   if(peerReady){
-    document.getElementById("status").innerText = "Auto joining ⚡..."
     joinRoom()
   } else {
     setTimeout(tryAutoJoin, 100)
   }
 }
-
 tryAutoJoin()
 }
 
